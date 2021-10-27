@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "tmalloc.h": "c",
-        "string.h": "c",
-        "assert.h": "c"
-    }
-}
