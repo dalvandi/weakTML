@@ -1,0 +1,83 @@
+# ==============================================================================
+#
+# Makefile.real
+#
+# ==============================================================================
+
+
+# ==============================================================================
+# Variables
+# ==============================================================================
+
+CC      := gcc
+CFLAGS  := -g -Wall -Winline -Og
+#CFLAGS  += -m32
+#CFLAGS  += -DTL2_OPTIM_HASHLOG
+#CFLAGS  += -DTL2_RESIZE_HASHLOG
+LD      := gcc
+
+LIBTML := libtml.a
+
+SRCS := \
+	tml.c\
+	tmalloc.c \
+#
+OBJS := ${SRCS:.c=.o}
+
+AR      := ar
+RANLIB  := ranlib
+
+RM := rm -f
+
+
+# ==============================================================================
+# Rules
+# ==============================================================================
+
+.PHONY: default
+default: lazy
+
+.PHONY: clean
+clean:
+	$(RM) $(LIBTML) $(OBJS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(LIBTML): $(OBJS)
+	$(AR) cru $@ $^
+	$(RANLIB) $@
+
+.PHONY: lazy
+lazy: $(LIBTML)
+
+.PHONY: eager
+eager: CFLAGS += -DTL2_EAGER
+eager: $(LIBTML)
+
+.PHONY: lazy-nocm
+lazy-nocm: CFLAGS += -DTL2_NOCM
+lazy-nocm: $(LIBTML)
+
+.PHONY: eager-nocm
+eager-nocm: CFLAGS += -DTL2_EAGER
+eager-nocm: CFLAGS += -DTL2_NOCM
+eager-nocm: $(LIBTML)
+
+.PHONY: otm
+otm: CFLAGS += -m32
+otm: $(LIBTML)
+
+
+# ==============================================================================
+# Dependencies
+# ==============================================================================
+
+%.o: %.h
+
+
+# ==============================================================================
+#
+# End of Makefile.real
+#
+# ==============================================================================
