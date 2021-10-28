@@ -16,6 +16,8 @@
 #define COMMIT 2
 #define NOTSTARTED 3
 
+//#define DEBUG
+
 #define FALSE 0
 #define TRUE 1
 
@@ -28,6 +30,7 @@ char ty[3] = {'N', 'P', 'F'};
 struct _Thread
 {
     long UniqID;
+    long transId;
     pthread_t tid;
     int loc;
     intptr_t val;
@@ -38,6 +41,7 @@ struct _Thread
     volatile long Retries;
     tmalloc_t* allocPtr; /* CCM: speculatively allocated */
     tmalloc_t* freePtr;  /* CCM: speculatively free'd */
+    sigjmp_buf* envPtr;
 };
 
 
@@ -147,12 +151,15 @@ void
 TxAbort (Thread* Self)
 {
     #ifdef DEBUG
-    printf("TxAbort \n");
+    printf("TxAbort (tid = %ld, transId=%ld) \n", Self->UniqID, Self->transId);
     #endif
 
 
     Self->Retries++;
     Self->Aborts++;
+    Self->status = ABORT;
+    SIGLONGJMP(*Self->envPtr, 1);
+
 }
 
 void*
@@ -175,8 +182,8 @@ TxFree (Thread* Self, void* ptr)
 }
 
 
-int
-TxStart(Thread* Self)
+void
+TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
 {
     Self->hasRead = FALSE;
     Self->loc = 0;
@@ -190,13 +197,15 @@ TxStart(Thread* Self)
 
     Self->Starts++;
 
+    Self->transId = Self->UniqID + Self->loc;
     Self->status = OK;
-    
+    Self->envPtr= envPtr;
+  
     #ifdef DEBUG
-    printf("\nTMBegin (loc=%d, status=%d) \n",  Self->loc, Self->status);
+    printf("\nTMBegin (loc=%d, status=%d, transId=%ld) \n",  Self->loc, Self->status, Self->transId);
     #endif
 
-    return OK; 
+
 
 }
 
@@ -205,6 +214,7 @@ TxStore(Thread* Self, volatile atomic_intptr_t* addr, intptr_t v, int tt)
 {
     if(Self->status != OK) {
          TxAbort(Self);
+         return;
         }
 
     if(EVEN(Self->loc))
@@ -217,18 +227,18 @@ TxStore(Thread* Self, volatile atomic_intptr_t* addr, intptr_t v, int tt)
 
             Self->status = ABORT;
                 TxAbort(Self);
+                return;
         }
         else
             Self->loc++;
     }
-
-    
+ 
     //*addr = v;
-    
     atomic_store_explicit(addr, v, memory_order_seq_cst);
     #ifdef DEBUG
     printf("TxStore_%c (addr = %ld, valu = %ld\n", ty[tt], &addr, v);
     #endif
+    return;
 
 }
 
@@ -277,12 +287,14 @@ TxLoad (Thread* Self, volatile atomic_intptr_t* addr, int tt)
 int
 TxCommit(Thread* Self)
 {
-   if(Self->status != OK) return 0;
+   if(Self->status != OK){ 
+       TxAbort(Self);
+       return 0; 
+    }
 
    if (!EVEN(Self->loc))
         atomic_store_explicit(&glb, Self->loc+1, memory_order_seq_cst);
 
-    //int tmp = atomic_load_explicit(&glb, memory_order_relaxed);
 
     #ifdef DEBUG
     printf("TxCommit\n");
