@@ -9,6 +9,8 @@
 #include "tml.h"
 #include "tmalloc.h"
 #include "platform.h"
+#include <time.h>
+#include <errno.h>    
 
 
 #define OK 1
@@ -68,6 +70,26 @@ inline void spin64()
 {
     for (int i = 0; i < 64; i++)
         nop();
+}
+
+inline void sleepy(long msec)
+{
+    struct timespec ts;
+    int res;
+
+    if (msec < 0)
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    ts.tv_sec = msec / 1000;
+    ts.tv_nsec = (msec % 1000) * 1000000;
+
+    do {
+        res = nanosleep(&ts, &ts);
+    } while (res && errno == EINTR);
+
 }
 
 
@@ -202,11 +224,22 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
     Self->val = 0;
     Self->status = NOTSTARTED;
 
-    do
+    /*do
     {
-        spin64();
+        //spin64();
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
-    } while (!EVEN(Self->loc));
+    } while (!EVEN(Self->loc));*/
+    long ms = 0.1;
+    long sleepc = 1;
+    
+    Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
+
+    while(!EVEN(Self->loc))
+    {
+        sleepy(sleepc * ms);
+        sleepc++;
+        Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
+    }
 
     Self->Starts++;
 
