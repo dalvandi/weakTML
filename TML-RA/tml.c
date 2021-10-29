@@ -231,6 +231,7 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
         //spin64();
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
     } while (!EVEN(Self->loc));*/
+
     long ms = MS;
     long sleepc = 1;
     
@@ -239,6 +240,7 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
     while(!EVEN(Self->loc))
     {
         sleepy(sleepc * ms);
+
         sleepc *= IF;
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
     }
