@@ -18,6 +18,8 @@
 #define COMMIT 2
 #define NOTSTARTED 3
 
+#define MS 0.005
+#define IF 30
 
 #define nop()               __asm__ volatile("nop")
 
@@ -229,7 +231,7 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
         //spin64();
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
     } while (!EVEN(Self->loc));*/
-    long ms = 0.1;
+    long ms = MS;
     long sleepc = 1;
     
     Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
@@ -237,7 +239,7 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
     while(!EVEN(Self->loc))
     {
         sleepy(sleepc * ms);
-        sleepc++;
+        sleepc *= IF;
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
     }
 
