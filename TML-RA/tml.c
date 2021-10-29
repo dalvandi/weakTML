@@ -16,6 +16,11 @@
 #define COMMIT 2
 #define NOTSTARTED 3
 
+
+#define nop()               __asm__ volatile("nop")
+
+
+
 //#define DEBUG
 
 #define FALSE 0
@@ -58,6 +63,13 @@ volatile long LocalOverflowTally = 0;
 atomic_int glb = 0;
 
 intptr_t nglb = 0;
+
+inline void spin64()
+{
+    for (int i = 0; i < 64; i++)
+        nop();
+}
+
 
 intptr_t
 AtomicAdd (volatile intptr_t* addr, intptr_t dx)
@@ -157,7 +169,7 @@ TxAbort (Thread* Self)
 
     Self->Retries++;
     Self->Aborts++;
-    Self->status = ABORT;
+    //Self->status = ABORT;
     SIGLONGJMP(*Self->envPtr, 1);
 
 }
@@ -192,13 +204,14 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
 
     do
     {
+        spin64();
         Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
     } while (!EVEN(Self->loc));
 
     Self->Starts++;
 
     Self->status = OK;
-    Self->transId = Self->UniqID + Self->loc;
+    //Self->transId = Self->UniqID + Self->loc;
     Self->envPtr= envPtr;
 
     #ifdef DEBUG
@@ -212,10 +225,10 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
 void
 TxStore(Thread* Self, volatile atomic_intptr_t* addr, atomic_intptr_t v, int tt)
 {
-    if(Self->status != OK) {
+    /*if(Self->status != OK) {
          TxAbort(Self);
          return;
-        }
+        }*/
 
     if(EVEN(Self->loc))
     {
@@ -247,7 +260,7 @@ TxStore(Thread* Self, volatile atomic_intptr_t* addr, atomic_intptr_t v, int tt)
 intptr_t
 TxLoad (Thread* Self, volatile atomic_intptr_t* addr, int tt)
 {
-    if(Self->status != OK) return 0;
+    //if(Self->status != OK) return 0;
 
     Self->val = atomic_load_explicit(addr, memory_order_relaxed);//(*(addr));
 
@@ -287,10 +300,10 @@ TxLoad (Thread* Self, volatile atomic_intptr_t* addr, int tt)
 int
 TxCommit(Thread* Self)
 {
-   if(Self->status != OK){ 
+   /*if(Self->status != OK){ 
        TxAbort(Self);
        return 0; 
-    }
+    }*/
 
    if (!EVEN(Self->loc))
         atomic_store_explicit(&glb, Self->loc+1, memory_order_release);
