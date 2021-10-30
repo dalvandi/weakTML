@@ -10,8 +10,7 @@
 #include "tmalloc.h"
 #include "platform.h"
 #include <time.h>
-#include <errno.h>    
-
+#include <errno.h>
 
 #define OK 1
 #define ABORT 0
@@ -21,9 +20,7 @@
 #define MS 0.005
 #define IF 30
 
-#define nop()               __asm__ volatile("nop")
-
-
+#define nop() __asm__ volatile("nop")
 
 //#define DEBUG
 
@@ -48,19 +45,18 @@ struct _Thread
     long Starts;
     long Aborts; /* Tally of # of aborts */
     volatile long Retries;
-    tmalloc_t* allocPtr; /* CCM: speculatively allocated */
-    tmalloc_t* freePtr;  /* CCM: speculatively free'd */
-    sigjmp_buf* envPtr;
+    tmalloc_t *allocPtr; /* CCM: speculatively allocated */
+    tmalloc_t *freePtr;  /* CCM: speculatively free'd */
+    sigjmp_buf *envPtr;
 };
 
+typedef struct _Thread Thread;
 
-typedef  struct _Thread Thread;
+static pthread_key_t global_key_self;
 
-static pthread_key_t    global_key_self;
-
-volatile long StartTally         = 0;
-volatile long AbortTally         = 0;
-volatile long ReadOverflowTally  = 0;
+volatile long StartTally = 0;
+volatile long AbortTally = 0;
+volatile long ReadOverflowTally = 0;
 volatile long WriteOverflowTally = 0;
 volatile long LocalOverflowTally = 0;
 
@@ -82,87 +78,74 @@ inline void sleepy(long msec)
     if (msec < 0)
     {
         errno = EINVAL;
-        return -1;
+        //return -1;
     }
 
     ts.tv_sec = msec / 1000;
     ts.tv_nsec = (msec % 1000) * 1000000;
 
-    do {
+    do
+    {
         res = nanosleep(&ts, &ts);
     } while (res && errno == EINTR);
-
 }
 
-
 intptr_t
-AtomicAdd (volatile intptr_t* addr, intptr_t dx)
+AtomicAdd(volatile intptr_t *addr, intptr_t dx)
 {
     //printf("AtomicAdd \n");
     intptr_t v;
-    for (v = *addr; CAS(addr, v, v+dx) != v; v = *addr) {}
-    return (v+dx);
+    for (v = *addr; CAS(addr, v, v + dx) != v; v = *addr)
+    {
+    }
+    return (v + dx);
 }
 
-
-void
-TxOnce ()
+void TxOnce()
 {
     //printf("TxOnce \n");
     pthread_key_create(&global_key_self, NULL); /* CCM: do before we register handler */
-
 }
 
-
-void
-TxShutdown ()
+void TxShutdown()
 {
     printf("TML-RA system shutdown.\n Starts: %li  Aborts: %li \n", StartTally, AbortTally);
 
     pthread_key_delete(global_key_self);
 }
 
-
-
-Thread*
-TxNewThread ()
+Thread *
+TxNewThread()
 {
     //printf("TxNewThread \n");
-    Thread* t = (Thread*)malloc(sizeof(Thread));
+    Thread *t = (Thread *)malloc(sizeof(Thread));
     assert(t);
 
     return t;
 }
 
-
-
-
-void
-TxFreeThread (Thread* t)
+void TxFreeThread(Thread *t)
 {
     //printf("TxFreeThread \n");
-    AtomicAdd((volatile intptr_t*)((void*)(&ReadOverflowTally)), 0);
+    AtomicAdd((volatile intptr_t *)((void *)(&ReadOverflowTally)), 0);
 
     long wrSetOvf = 0;
 
-    AtomicAdd((volatile intptr_t*)((void*)(&WriteOverflowTally)), wrSetOvf);
+    AtomicAdd((volatile intptr_t *)((void *)(&WriteOverflowTally)), wrSetOvf);
 
-    AtomicAdd((volatile intptr_t*)((void*)(&StartTally)),         t->Starts);
-    AtomicAdd((volatile intptr_t*)((void*)(&AbortTally)),         t->Aborts);
-
+    AtomicAdd((volatile intptr_t *)((void *)(&StartTally)), t->Starts);
+    AtomicAdd((volatile intptr_t *)((void *)(&AbortTally)), t->Aborts);
 
     free(t);
 }
 
-
-void
-TxInitThread (Thread* t, long id)
+void TxInitThread(Thread *t, long id)
 {
     //printf("TxInitThread (id = %ld) \n", id);
     /* CCM: so we can access NOREC's thread metadata in signal handlers */
-    pthread_setspecific(global_key_self, (void*)t);
+    pthread_setspecific(global_key_self, (void *)t);
 
-    memset(t, 0, sizeof(*t));     /* Default value for most members */
+    memset(t, 0, sizeof(*t)); /* Default value for most members */
 
     t->UniqID = id;
     t->allocPtr = tmalloc_alloc(1);
@@ -173,71 +156,56 @@ TxInitThread (Thread* t, long id)
     //sleep(300);
 }
 
-
-void
-txCommitReset (Thread* Self)
+void txCommitReset(Thread *Self)
 {
     //printf("txCommitReset \n");
     //txReset(Self);
     Self->Retries = 0;
 }
 
-
-void
-TxAbort (Thread* Self)
+void TxAbort(Thread *Self)
 {
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("TxAbort (tid = %ld, transId=%ld) \n", Self->UniqID, Self->transId);
-    #endif
-
+#endif
 
     Self->Retries++;
     Self->Aborts++;
     //Self->status = ABORT;
     SIGLONGJMP(*Self->envPtr, 1);
-
 }
 
-void*
-TxAlloc (Thread* Self, size_t size)
+void *
+TxAlloc(Thread *Self, size_t size)
 {
-      //printf("TxAlloc \n");
-    void* ptr = tmalloc_reserve(size);
-    if (ptr) {
+    //printf("TxAlloc \n");
+    void *ptr = tmalloc_reserve(size);
+    if (ptr)
+    {
         tmalloc_append(Self->allocPtr, ptr);
     }
 
     return ptr;
 }
 
-
-void
-TxFree (Thread* Self, void* ptr)
+void TxFree(Thread *Self, void *ptr)
 {
     tmalloc_append(Self->freePtr, ptr);
 }
 
-
-void
-TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
+void TxStart(Thread *Self, sigjmp_buf *envPtr, int *ROFlag)
 {
     Self->hasRead = FALSE;
     Self->loc = 0;
     Self->val = 0;
     Self->status = NOTSTARTED;
 
-    /*do
-    {
-        //spin64();
-        Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
-    } while (!EVEN(Self->loc));*/
-
     long ms = MS;
     long sleepc = 1;
-    
+
     Self->loc = atomic_load_explicit(&glb, memory_order_acquire);
 
-    while(!EVEN(Self->loc))
+    while (!EVEN(Self->loc))
     {
         sleepy(sleepc * ms);
 
@@ -246,34 +214,23 @@ TxStart (Thread* Self, sigjmp_buf* envPtr, int* ROFlag)
     }
 
     Self->Starts++;
-
     Self->status = OK;
-    //Self->transId = Self->UniqID + Self->loc;
-    Self->envPtr= envPtr;
+    Self->envPtr = envPtr;
 
-    #ifdef DEBUG
-    printf("\nTMBegin (loc=%d, status=%d, transId=%ld) \n",  Self->loc, Self->status, Self->transId);
-    #endif
-
-    //return OK; 
-
+#ifdef DEBUG
+    printf("\nTMBegin (loc=%d, status=%d, transId=%ld) \n", Self->loc, Self->status, Self->transId);
+#endif
 }
 
-void
-TxStore(Thread* Self, volatile atomic_intptr_t* addr, atomic_intptr_t v, int tt)
+void TxStore(Thread *Self, volatile atomic_intptr_t *addr, atomic_intptr_t v, int tt)
 {
-    /*if(Self->status != OK) {
-         TxAbort(Self);
-         return;
-        }*/
-
-    if(EVEN(Self->loc))
+    if (EVEN(Self->loc))
     {
-        if(!CAS_RA(glb, Self->loc, Self->loc+1))
+        if (!CAS_RA(glb, Self->loc, Self->loc + 1))
         {
-            #ifdef DEBUG
+#ifdef DEBUG
             printf("TxStore_%c *ABORTED* (addr = %ld, valu = %ld, tid = %ld, transId=%ld)\n", ty[tt], &addr, v, Self->UniqID, Self->transId);
-            #endif
+#endif
 
             Self->status = ABORT;
             TxAbort(Self);
@@ -285,73 +242,56 @@ TxStore(Thread* Self, volatile atomic_intptr_t* addr, atomic_intptr_t v, int tt)
 
     //*addr = v;
     atomic_store_explicit(addr, v, memory_order_release);
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("TxStore_%c (addr = %ld, valu = %ld, tid = %ld, transId=%ld)\n", ty[tt], &addr, v, Self->UniqID, Self->transId);
-    #endif
+#endif
     return;
-
 }
 
-
-
 intptr_t
-TxLoad (Thread* Self, volatile atomic_intptr_t* addr, int tt)
+TxLoad(Thread *Self, volatile atomic_intptr_t *addr, int tt)
 {
-    //if(Self->status != OK) return 0;
+    Self->val = atomic_load_explicit(addr, memory_order_relaxed); //(*(addr));
 
-    Self->val = atomic_load_explicit(addr, memory_order_relaxed);//(*(addr));
-
-    //int temp = atomic_load_explicit(&glb, memory_order_relaxed);
-    if(!Self->hasRead && EVEN(Self->loc))
+    if (!Self->hasRead && EVEN(Self->loc))
     {
-        if(CAS_RA(glb, Self->loc, Self->loc))
+        if (CAS_RA(glb, Self->loc, Self->loc))
         {
             Self->hasRead = TRUE;
 
-            #ifdef DEBUG
+#ifdef DEBUG
             printf("TxLoad_%c (val = %ld, tid = %ld, transId=%ld)  \n", ty[tt], Self->val, Self->UniqID, Self->transId);
-            #endif
+#endif
 
             return Self->val;
         }
     }
-    else if(Self->loc == atomic_load_explicit(&glb, memory_order_relaxed))
+    else if (Self->loc == atomic_load_explicit(&glb, memory_order_relaxed))
     {
-        #ifdef DEBUG
-            printf("TxLoad_%c (val = %ld, tid = %ld, transId=%ld)  \n", ty[tt], Self->val, Self->UniqID, Self->transId);
-        #endif
-        
+#ifdef DEBUG
+        printf("TxLoad_%c (val = %ld, tid = %ld, transId=%ld)  \n", ty[tt], Self->val, Self->UniqID, Self->transId);
+#endif
+
         return Self->val;
     }
 
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("TMRead(tid=%ld, transId=%ld) returns ABORTED\n", Self->UniqID, Self->transId);
-    #endif
+#endif
 
     Self->status = ABORT;
     TxAbort(Self);
-  return ABORT;
+    return ABORT;
 }
 
-
-int
-TxCommit(Thread* Self)
+int TxCommit(Thread *Self)
 {
-   /*if(Self->status != OK){ 
-       TxAbort(Self);
-       return 0; 
-    }*/
+    if (!EVEN(Self->loc))
+        atomic_store_explicit(&glb, Self->loc + 1, memory_order_release);
 
-   if (!EVEN(Self->loc))
-        atomic_store_explicit(&glb, Self->loc+1, memory_order_release);
-
-
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("TxCommit(tid = %ld, transId=%ld)\n", Self->UniqID, Self->transId);
-    #endif
+#endif
 
-   return 1;
+    return 1;
 }
-
-
-
