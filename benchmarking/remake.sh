@@ -4,24 +4,24 @@ echo "Remake all the benchmarks"
 cd "$stamp"/genome/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/intruder/
+cd ".."/intruder/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/labyrinth/
+cd ".."/labyrinth/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/ssca2/
+cd ".."/ssca2/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/vacation/
+cd ".."/vacation/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/yada/
+cd ".."/yada/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/bayes/
+cd ".."/bayes/
 make -f Makefile.stm clean
 make -f Makefile.stm
-cd "$stamp"/kmeans/
+cd ".."/kmeans/
 make -f Makefile.stm clean
 make -f Makefile.stm
