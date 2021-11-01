@@ -45,12 +45,23 @@ function printTheResult($data, $benchmarks, $thrds)
 {
     echo "Benchmark, NoT, Time \n";
 
-    foreach ($benchmarks as $bm){
-    foreach ($thrds as $t) {
-        echo "{$bm}, {$t}, {$data[$bm][$t]} \n";
+    foreach ($benchmarks as $bm) {
+        foreach ($thrds as $t) {
+            echo "{$bm}, {$t}, {$data[$bm][$t]} \n";
+        }
     }
 }
 
+
+function generateLatex($data, $benchmarks, $thrds)
+{
+    echo "Benchmark, NoT, Time \n";
+
+    foreach ($benchmarks as $bm) {
+        foreach ($thrds as $t) {
+            echo "{$bm}, {$t}, {$data[$bm][$t]} \n";
+        }
+    }
 }
 
 
@@ -74,4 +85,5 @@ foreach ($benchmarks as $bm) {
 
 
 $res = processTheResult($data, $benchmarks, $thrds);
-printTheResult($res, $benchmarks, $thrds);
+//printTheResult($res, $benchmarks, $thrds);
+generateLatex($res, $benchmarks, $thrds);
