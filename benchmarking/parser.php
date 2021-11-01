@@ -55,11 +55,13 @@ function printTheResult($data, $benchmarks, $thrds)
 
 function generateLatex($data, $benchmarks, $thrds)
 {
-    echo "Benchmark, NoT, Time \n";
 
     foreach ($benchmarks as $bm) {
+        echo "LaTeX for {$bm}:\n";
+        $i = 0;
         foreach ($thrds as $t) {
-            echo "{$bm}, {$t}, {$data[$bm][$t]} \n";
+            echo "($i, {$data[$bm][$t]}) \n";
+            $i += 20;
         }
     }
 }
@@ -85,5 +87,15 @@ foreach ($benchmarks as $bm) {
 
 
 $res = processTheResult($data, $benchmarks, $thrds);
-//printTheResult($res, $benchmarks, $thrds);
+
+echo "\n\n";
+echo "**********************************\n";
+echo "*************** CSV **************\n";
+echo "**********************************\n";
+printTheResult($res, $benchmarks, $thrds);
+
+echo "\n\n";
+echo "**********************************\n";
+echo "*******LaTeX Plot Coordinate******\n";
+echo "**********************************\n";
 generateLatex($res, $benchmarks, $thrds);
