@@ -64,6 +64,8 @@ atomic_int glb = 0;
 
 intptr_t nglb = 0;
 
+atomic_int nma = 0;
+
 inline void spin64()
 {
     for (int i = 0; i < 64; i++)
@@ -109,7 +111,7 @@ void TxOnce()
 
 void TxShutdown()
 {
-    printf("sTML system shutdown.\n Starts: %li  Aborts: %li \n", StartTally, AbortTally);
+    printf("TML-SC system shutdown.\n Starts: %li  Aborts: %li \n NoA: %d \n", StartTally, AbortTally, nma);
 
     pthread_key_delete(global_key_self);
 }
@@ -204,6 +206,7 @@ void TxStart(Thread *Self, sigjmp_buf *envPtr, int *ROFlag)
     long sleepc = 1;
 
     Self->loc = atomic_load_explicit(&glb, memory_order_seq_cst);
+    ++nma;
 
     while (!EVEN(Self->loc))
     {
@@ -211,6 +214,7 @@ void TxStart(Thread *Self, sigjmp_buf *envPtr, int *ROFlag)
 
         sleepc *= IF;
         Self->loc = atomic_load_explicit(&glb, memory_order_seq_cst);
+        ++nma;
     }
 
     Self->Starts++;
@@ -228,6 +232,7 @@ void TxStore(Thread *Self, volatile atomic_intptr_t *addr, intptr_t v, int tt)
     {
         if (!CAS_SC(glb, Self->loc, Self->loc + 1))
         {
+       ++nma;
 #ifdef DEBUG
             printf("TxStore_%c (addr = %ld, valu = %ld\n", ty[tt], &addr, v);
 #endif
@@ -242,6 +247,7 @@ void TxStore(Thread *Self, volatile atomic_intptr_t *addr, intptr_t v, int tt)
 
     //*addr = v;
     atomic_store_explicit(addr, v, memory_order_seq_cst);
+    ++nma;
 #ifdef DEBUG
     printf("TxStore_%c (addr = %ld, valu = %ld\n", ty[tt], &addr, v);
 #endif
@@ -252,12 +258,14 @@ intptr_t
 TxLoad(Thread *Self, volatile atomic_intptr_t *addr, int tt)
 {
     Self->val = atomic_load_explicit(addr, memory_order_seq_cst);
+    ++nma;
 
     if (!Self->hasRead && EVEN(Self->loc))
     {
         if (CAS_SC(glb, Self->loc, Self->loc))
         {
-            Self->hasRead = TRUE;
+          ++nma;
+          Self->hasRead = TRUE;
 
 #ifdef DEBUG
             printf("TxLoad_%c (val = %ld)  \n", ty[tt], Self->val);
@@ -268,6 +276,7 @@ TxLoad(Thread *Self, volatile atomic_intptr_t *addr, int tt)
     }
     else if (Self->loc == atomic_load_explicit(&glb, memory_order_seq_cst))
     {
+    ++nma;
 #ifdef DEBUG
         printf("TxLoad_%c (val = %ld)  \n", ty[tt], Self->val);
 #endif
@@ -286,9 +295,10 @@ TxLoad(Thread *Self, volatile atomic_intptr_t *addr, int tt)
 
 int TxCommit(Thread *Self)
 {
-    if (!EVEN(Self->loc))
+    if (!EVEN(Self->loc)){
         atomic_store_explicit(&glb, Self->loc + 1, memory_order_seq_cst);
-
+       ++nma;
+    }
 #ifdef DEBUG
     printf("TxCommit\n");
 #endif
